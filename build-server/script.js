@@ -55,6 +55,8 @@ async function init() {
         const distFolderContents = fs.readdirSync(distFolderPath, { recursive: true })
 
         try {
+            // Upload files to S3 in parallel
+            const uploadPromises = [];
             for (const file of distFolderContents) {
                 const filePath = path.join(distFolderPath, file)
                 if (fs.lstatSync(filePath).isDirectory()) continue
@@ -68,9 +70,13 @@ async function init() {
                     ContentType: mime.lookup(filePath) || 'application/octet-stream',
                 })
 
-                await s3Client.send(command)
-                console.log('uploaded', filePath)
+                const uploadTask = s3Client.send(command).then(() => {
+                    console.log('uploaded', filePath)
+                });
+                
+                uploadPromises.push(uploadTask);
             }
+            await Promise.all(uploadPromises);
             console.log('Done...')
         } catch (err) {
             console.error('Upload failed:', err)
